@@ -1,27 +1,26 @@
-extern crate fst;
-extern crate fst_levenshtein;
-extern crate fst_regex;
-extern crate rustdoc_seeker;
 use fst::Automaton;
 use rustdoc_seeker::RustDoc;
 use std::fs;
+use std::path::PathBuf;
 
 fn main() {
-    let data = fs::read_to_string("search-index.js").unwrap();
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("examples/search-index.js");
+    let data = fs::read_to_string(path).unwrap();
     let rustdoc: RustDoc = data.parse().unwrap();
     let seeker = rustdoc.build();
 
-    let regex = fst_regex::Regex::new(".*dedup.*").unwrap();
+    let regex = fst_regex::Regex::new(".*io.*").unwrap();
     for i in seeker.search(&regex) {
         println!("Regex {}", i);
     }
 
-    let edist = fst_levenshtein::Levenshtein::new("dedXp", 1).unwrap();
+    let edist = fst_levenshtein::Levenshtein::new("spawn", 1).unwrap();
     for i in seeker.search(&edist) {
         println!("Edit Distance {}", i);
     }
 
-    let subsq = fst::automaton::Subsequence::new("dedup");
+    let subsq = fst::automaton::Subsequence::new("try_join");
     for i in seeker.search(&subsq) {
         println!("Subsequence {}", i);
     }

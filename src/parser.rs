@@ -1,7 +1,8 @@
-use json::fix_json;
-use seeker::{DocItem, RustDoc, TypeItem};
+use crate::seeker::{DocItem, RustDoc, TypeItem};
+use quick_js::Context;
+use serde_derive::Deserialize;
 use serde_json::{self, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::str::FromStr;
 use string_cache::DefaultAtom as Atom;
 
@@ -26,7 +27,9 @@ struct IndexItem {
 #[derive(Debug, Deserialize)]
 struct SearchIndex {
     doc: Atom,
+    #[serde(rename = "i")]
     items: Vec<IndexItem>,
+    #[serde(rename = "p")]
     paths: Vec<Parent>,
 }
 
@@ -44,16 +47,11 @@ impl FromStr for RustDoc {
     type Err = serde_json::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let json_data = eval_js(s);
+        let data: HashMap<String, SearchIndex> = serde_json::from_str(&json_data).unwrap();
         let mut items = BTreeSet::new();
 
-        for line in s.lines().filter(|x| x.starts_with("searchIndex")) {
-            let eq = line.find('=').unwrap() + 1;
-            let line = line.split_at(eq).1.trim().trim_end_matches(';');
-
-            let json = fix_json(line);
-
-            let index: SearchIndex = serde_json::from_str(&json).unwrap();
-
+        for (_, index) in data {
             let mut last_path = Atom::from("");
             let parents = index.paths;
 
@@ -77,6 +75,17 @@ impl FromStr for RustDoc {
     }
 }
 
+fn eval_js(data: &str) -> String {
+    let context = Context::new().unwrap();
+    // Error is allowed here, because `addSearchOptions` and `initSearch` are not defined here.
+    let _ = context.eval(data);
+    context
+        .eval("JSON.stringify(searchIndex)")
+        .unwrap()
+        .into_string()
+        .unwrap()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -84,42 +93,28 @@ mod test {
     #[test]
     fn test_parser() {
         let data = r#"
-        {
-          "doc": "The Rust Standard Library",
-          "items": [
-            [
-              0,
-              "any",
-              "std",
-              "This module implements the `Any` trait, which enables dynamic typing of any `'static` type through runtime reflection.",
-              N,
-              N
-            ],
-            [
-              8,
-              "Any",
-              "std::any",
-              "A type to emulate dynamic typing.",
-              N,
-              N
-            ],
-            [
-              10,
-              "alloc",
-              "",
-              "Returns a pointer meeting the size and alignment guarantees of `layout`.",
-              3,
-              {"i":[{"n":"self"},{"n":"layout"}],"o":{"g":["nonnull","allocerr"],"n":"result"}}
-            ]
-          ],
-          "paths": [
-            [0, ""],
-            [0, ""],
-            [8, "Alloc"]
-          ]
-        }
+        var N=null,E="",T="t",U="u",searchIndex={};
+        var R=["duration","implfuture","result","Output","The type of value produced on completion.","Future","async_std","An error returned when an operation could not be completedвЂ¦","A locked reference to the Stderr handle."];
+        searchIndex["async_std"]={"doc":"Async version of the Rust standard library","i":[[23,"main",R[6],"Enables an async main function.",N,N],[23,"test",E,"Enables an async test function.",N,N]],
+        "p":[[8,R[1]],[8,R[2]],[6,R[3]],[6,"SeekFrom"]]};
+        addSearchOptions(searchIndex);initSearch(searchIndex);
         "#;
-        let index: SearchIndex = serde_json::from_str(data).unwrap();
-        println!("{:?}", index);
+        let index = RustDoc::from_str(data).unwrap();
+        let value = format!("{:?}", index);
+        assert_eq!(value, "RustDoc { items: {DocItem { name: AttributeMacro(Atom('main' type=inline)), parent: None, path: Atom('async_std' type=dynamic), desc: Atom('Enables an async main function.' type=dynamic) }, DocItem { name: AttributeMacro(Atom('test' type=inline)), parent: None, path: Atom('async_std' type=dynamic), desc: Atom('Enables an async test function.' type=dynamic) }} }")
+    }
+
+    #[test]
+    fn test_eval_js() {
+        let data = r#"
+        var N=null,E="",T="t",U="u",searchIndex={};
+        var R=["duration","implfuture","result","Output","The type of value produced on completion.","Future","async_std","An error returned when an operation could not be completedвЂ¦","A locked reference to the Stderr handle."];
+        searchIndex["async_std"]={"doc":"Async version of the Rust standard library","i":[[23,"main",R[6],"Enables an async main function.",N,N],[23,"test",E,"Enables an async test function.",N,N]],
+        "p":[[8,R[5]],[8,R[1]],[4,R[2]],[4,"SeekFrom"]]};
+        addSearchOptions(searchIndex);initSearch(searchIndex);
+        "#;
+        assert_eq!(eval_js(data),
+            r#"{"async_std":{"doc":"Async version of the Rust standard library","i":[[23,"main","async_std","Enables an async main function.",null,null],[23,"test","","Enables an async test function.",null,null]],"p":[[8,"Future"],[8,null],[4,null],[4,"SeekFrom"]]}}"#
+        );
     }
 }

@@ -77,6 +77,7 @@ enum_number!(TypeItem {
     ForeignType     | "foreigntype"     | 20,
     Keyword         | "keyword"         | 21,
     Existential     | "existential"     | 22,
+    AttributeMacro  | "attributemacro"  | 23,
 });
 
 /// DocItem represent a searchable item,
@@ -176,6 +177,8 @@ impl fmt::Display for DocItem {
 /// # Example
 ///
 /// ```
+/// use std::fs;
+/// use rustdoc_seeker::RustDoc;
 /// let data = fs::read_to_string("search-index.js").unwrap();
 /// let rustdoc: RustDoc = data.parse().unwrap();
 ///
@@ -291,7 +294,7 @@ impl RustDocSeeker {
 
         result.into_iter().flat_map(move |idx| {
             let start = (idx >> 32) as usize;
-            let end = (idx & 0xffffffff) as usize;
+            let end = (idx & 0xff_fff_fff) as usize;
             &self.items[start..end]
         })
     }
