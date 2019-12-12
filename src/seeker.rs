@@ -1,5 +1,6 @@
 use fst::{Automaton, IntoStreamer, Map, MapBuilder};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -21,7 +22,7 @@ macro_rules! enum_number {
         /// assert_eq!("fn.vec", TypeItme::Function("vec")); // the only two exceptions
         /// assert_eq!("type.vec", TypeItme::Typedef("vec")); // the only two exceptions
         /// ```
-        #[derive(Clone, Debug, Eq, PartialEq)]
+        #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
         pub enum $name {
             $($variant(Atom),)*
         }
@@ -96,7 +97,7 @@ enum_number!(TypeItem {
 /// ```
 /// println!("{} is the url of {:?}", &docitem, &docitem)
 /// ```
-#[derive(Debug, Eq)]
+#[derive(Debug, Eq, Serialize, Deserialize)]
 pub struct DocItem {
     pub name: TypeItem,
     pub parent: Option<TypeItem>,
@@ -185,7 +186,7 @@ impl fmt::Display for DocItem {
 /// // let's combine RustDoc
 /// rustdoc_a.extend(rustdoc_b)
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RustDoc {
     items: BTreeSet<DocItem>,
 }
